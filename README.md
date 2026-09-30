@@ -6,7 +6,7 @@ Slack 메시지에 🔖 이모지를 달면 Mac 화면 오른쪽 위에 할 일�
 
 ## 1. 앱 설치
 
-1. `SlackRemind.zip`을 받아 더블클릭해 압축을 푼다.
+1. [SlackRemind.zip 내려받기](https://github.com/kswrototo/slack-remind/releases/latest/download/SlackRemind.zip)를 눌러 받고, 더블클릭해 압축을 푼다.
 2. 나온 `SlackRemind`를 응용 프로그램 폴더로 옮긴다.
 3. 더블클릭해 연다. "확인되지 않은 개발자" 경고가 뜨면 완료(또는 확인)를 눌러 닫는다.
 4. 시스템 설정 > 개인정보 보호 및 보안으로 가서 아래쪽의 "SlackRemind" 옆 **그래도 열기**를 누른다.
@@ -59,3 +59,7 @@ Slack 메시지에 🔖 이모지를 달면 Mac 화면 오른쪽 위에 할 일�
 | Slack에서 앱 만들기가 막힌다 | 워크스페이스 관리자에게 앱 설치 승인을 요청한다 |
 
 그래도 안 되면 `~/Library/Logs/SlackRemind.log` 파일을 담당자에게 보낸다. 이 파일에는 메시지 내용과 토큰이 들어 있지 않다.
+
+## 직접 빌드하기
+
+개발자용. Xcode Command Line Tools가 있으면 `./build.sh` 한 번으로 `build/SlackRemind.app`과 배포용 zip이 만들어진다.
