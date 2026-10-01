@@ -58,6 +58,18 @@ func firstLine(_ text: String, max: Int = 80) -> String {
     return String(line.trimmingCharacters(in: .whitespaces).prefix(max))
 }
 
+/// 메모는 미리알림 notes 안에 "메모: " 문단으로 둔다. 아이폰 미리알림에서도 같이 보인다.
+func memoText(in notes: String?) -> String {
+    (notes ?? "").components(separatedBy: "\n\n").first { $0.hasPrefix("메모: ") }.map { String($0.dropFirst(4)) } ?? ""
+}
+
+func notes(_ notes: String?, memo: String) -> String {
+    var blocks = (notes ?? "").components(separatedBy: "\n\n").filter { !$0.hasPrefix("메모: ") }
+    let m = memo.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n\n", with: "\n")
+    if !m.isEmpty { blocks.insert("메모: " + m, at: min(1, blocks.count)) } // 보낸 사람 줄 바로 아래
+    return blocks.joined(separator: "\n\n")
+}
+
 enum Preset: String, CaseIterable {
     case hour = "1시간 뒤"
     case fourPM = "오후 4시"
@@ -93,6 +105,14 @@ func selfTest() {
 
     precondition(cleanSlackText("<https://a.com|견적서> 확인 &amp; 회신 <@U1>") == "견적서 확인 & 회신 @U1")
     precondition(firstLine("\n 첫 줄 \n둘째 줄") == "첫 줄")
+
+    let base = "보낸 사람: 김철수\n\n본문\n\nhttps://x"
+    let withMemo = notes(base, memo: " 견적 다시 확인 ")
+    precondition(withMemo == "보낸 사람: 김철수\n\n메모: 견적 다시 확인\n\n본문\n\nhttps://x")
+    precondition(memoText(in: withMemo) == "견적 다시 확인")
+    precondition(notes(withMemo, memo: "") == base, "메모를 지우면 원래 notes로 돌아가야 한다")
+    precondition(notes(withMemo, memo: "바꿈") == notes(base, memo: "바꿈"), "메모는 하나만 남아야 한다")
+    precondition(firstLine(withMemo) == "보낸 사람: 김철수", "보낸 사람 줄은 그대로 첫 줄")
 
     var cal = Calendar(identifier: .gregorian)
     cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
@@ -478,6 +498,13 @@ final class Store: ObservableObject {
         save(r)
     }
 
+    func setMemo(_ r: EKReminder, _ memo: String) {
+        let updated = notes(r.notes, memo: memo)
+        guard updated != (r.notes ?? "") else { return }
+        r.notes = updated
+        save(r)
+    }
+
     func setDue(_ r: EKReminder, _ date: Date?) {
         logLine("시간 지정: \(date?.formatted(date: .numeric, time: .shortened) ?? "지움")")
         r.alarms?.forEach(r.removeAlarm)
@@ -582,6 +609,7 @@ struct AttentionCard: View {
     let reminder: EKReminder
     let due: Bool
     @State private var title: String
+    @State private var memo: String
     @State private var done = false
     @State private var custom = Date().addingTimeInterval(3600)
 
@@ -589,6 +617,7 @@ struct AttentionCard: View {
         self.reminder = reminder
         self.due = due
         _title = State(initialValue: reminder.title ?? "")
+        _memo = State(initialValue: memoText(in: reminder.notes))
     }
 
     private var id: String { reminder.calendarItemIdentifier }
@@ -596,6 +625,7 @@ struct AttentionCard: View {
 
     private func set(_ date: Date) {
         store.rename(reminder, to: title)
+        store.setMemo(reminder, memo)
         store.setDue(reminder, date)
         store.dismiss(id)
     }
@@ -621,6 +651,7 @@ struct AttentionCard: View {
                 }
                 CircleButton(symbol: "xmark", label: due ? "닫기" : "시간 없이 저장") {
                     store.rename(reminder, to: title)
+                    store.setMemo(reminder, memo)
                     store.dismiss(id)
                 }
             }
@@ -644,6 +675,11 @@ struct AttentionCard: View {
                         .onSubmit { store.rename(reminder, to: title) }
                         .opacity(done ? 0.4 : 1)
                     Text(sender).font(.system(size: 12)).foregroundStyle(.secondary)
+                    TextField("메모 (선택)", text: $memo, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .lineLimit(1...4)
+                        .padding(.top, 6)
                 }
                 Spacer(minLength: 0)
             }
@@ -842,6 +878,7 @@ struct Row: View {
     @EnvironmentObject var store: Store
     let reminder: EKReminder
     @State private var title: String
+    @State private var memo: String
     @State private var done = false
     @State private var picking = false
     @State private var custom = Date().addingTimeInterval(3600)
@@ -849,6 +886,7 @@ struct Row: View {
     init(reminder: EKReminder) {
         self.reminder = reminder
         _title = State(initialValue: reminder.title ?? "")
+        _memo = State(initialValue: memoText(in: reminder.notes))
     }
 
     private var due: Date? { reminder.dueDateComponents.flatMap(Calendar.current.date(from:)) }
@@ -869,6 +907,11 @@ struct Row: View {
                     Text("\(sender) · \(due.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "시간 미지정")")
                         .font(.caption)
                         .foregroundStyle(due.map { $0 < Date() } == true ? Color.red : Color.secondary)
+                    TextField("메모", text: $memo, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.caption)
+                        .lineLimit(1...4)
+                        .onSubmit { store.setMemo(reminder, memo) }
                 }
 
                 Menu {
